@@ -1,0 +1,95 @@
+---
+- hosts: squarehead-webservers
+  remote_user: root
+  become: yes
+  tasks:
+    #########################
+    # Provision Servers
+    - name: Provision Servers
+      tags: ["provision"]
+      block:
+        - name: Update cache
+          apt:
+            update_cache: yes
+
+        - name: Install pip packages
+          include_role:
+            name: geerlingguy.pip
+          vars:
+            pip_package: python3-pip
+            pip_install_packages:
+              - name: docker
+              - name: docker-compose
+
+        - name: Install Docker
+          include_role:
+            name: geerlingguy.docker
+
+        - name: Create an ext4 filesystem on attached disk - /dev/sdb
+          filesystem:
+            fstype: ext4
+            dev: /dev/sdb
+            opts: -E lazy_itable_init=0,lazy_journal_init=0,discard -m 0
+
+        - name: Create mount directory for attached disk
+          file:
+            path: "{{ attached_disk_path }}"
+            state: directory
+
+        - name: Mount attached disk
+          mount:
+            path: "{{ attached_disk_path }}"
+            backup: yes
+            src: /dev/sdb
+            fstype: ext4
+            opts: discard,defaults
+            state: mounted
+
+        - name: Update file permissions for attached disk
+          file:
+            path: "{{ attached_disk_path }}"
+            mode: "a+w"
+    #########################
+
+    #########################
+    # Deploy Applications
+    - name: Deploy Apps
+      tags: ["deploy"]
+      block:
+        - name: Create letsencrypt target directory
+          file:
+            path: "{{ website_data_path }}/letsencrypt"
+            state: directory
+
+        - name: Upload google creds for certbot
+          copy:
+            content: "{{ certbot_google_credentials | to_json }}"
+            dest: "{{ website_data_path }}/letsencrypt/google.ini"
+
+        - name: Copy additional config for certbot
+          ini_file:
+            path: "{{ website_data_path }}/letsencrypt/config/etc/letsencrypt/cli"
+            section: null
+            option: dns-google-propagation-seconds
+            value: 90
+
+        - name: Create nginx config from template
+          template:
+            src: templates/nginx.conf.j2
+            dest: "{{ website_data_path }}/letsencrypt/default"
+
+        - name: Create docker-compose.yml from template
+          template:
+            src: templates/docker-compose.yml.j2
+            dest: "{{ website_data_path }}/docker-compose.yml"
+
+        - name: Start Docker service
+          docker_service:
+            project_name: "{{ website_name }}"
+            project_src: "{{ website_data_path }}"
+            pull: yes
+            state: present
+            restarted: yes
+            remove_orphans: yes
+            remove_volumes: yes
+    #########################

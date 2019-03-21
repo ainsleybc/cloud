@@ -1,0 +1,2 @@
+[squarehead-webservers]
+104.196.61.191 ansible_python_interpreter=/usr/bin/python3

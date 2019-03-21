@@ -1,0 +1,9 @@
+.terraform
+.secret
+*.tfstate.backup
+*.tfstate
+*.tfplan
+*.retry
+roles
+vars.yml
+terraform.tfvars

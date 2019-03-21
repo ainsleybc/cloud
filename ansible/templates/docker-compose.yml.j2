@@ -1,0 +1,38 @@
+version: "2"
+
+services:
+  nginx:
+    image: linuxserver/letsencrypt
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - {{ website_data_path }}/letsencrypt/default:/config/nginx/site-confs/default
+      - {{ website_data_path }}/letsencrypt/google.ini:/config/dns-conf/google.ini
+      - {{ website_data_path }}/letsencrypt/config/etc/letsencrypt:/config/etc/letsencrypt
+    environment:
+      - EMAIL={{ certbot_notification_email }}
+      - URL={{ website_domain }}
+      - SUBDOMAINS=admin
+      - ONLY_SUBDOMAINS=true
+      - TZ=Europe/London
+      - VALIDATION=dns
+      - DNSPLUGIN=google
+      - STAGING=true # for testing
+    networks:
+      - frontend
+
+  ghost:
+    image: ghost:2-alpine
+    restart: always
+    environment:
+      NODE_ENV: production
+      url: {{ website_url }}
+    volumes:
+      - {{ website_data_path }}/ghost/content:/var/lib/ghost/content
+    networks:
+      - frontend
+
+networks:
+  frontend:
